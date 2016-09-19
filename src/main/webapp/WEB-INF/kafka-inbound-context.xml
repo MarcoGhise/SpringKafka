@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:int-kafka="http://www.springframework.org/schema/integration/kafka"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/stream http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd
+		http://www.springframework.org/schema/integration/kafka http://www.springframework.org/schema/integration/kafka/spring-integration-kafka.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+	<int:channel id="inputFromKafka">
+		<int:queue />
+	</int:channel>
+
+	<int:service-activator input-channel="inputFromKafka"
+		ref="messageProcessor">
+		<int:poller fixed-rate="500" />
+	</int:service-activator>
+
+	<bean id="consumerProperties"
+		class="org.springframework.beans.factory.config.PropertiesFactoryBean">
+		<property name="properties">
+			<props>
+				<prop key="auto.offset.reset">smallest</prop>
+				<prop key="socket.receive.buffer.bytes">10485760</prop> <!-- 10M -->
+				<prop key="fetch.message.max.bytes">5242880</prop>
+				<prop key="auto.commit.interval.ms">1000</prop>
+			</props>
+		</property>
+	</bean>
+
+
+	<int-kafka:zookeeper-connect id="zookeeperConnect"
+		zk-connect="localhost:2181" zk-connection-timeout="6000"
+		zk-session-timeout="6000" zk-sync-time="2000" />
+
+
+	<bean id="kafkaThreadListener" class="it.demo.kafka.springkafka.listener.KafkaConsumerStarter"
+		init-method="initIt" destroy-method="cleanUp" />
+
+	<int-kafka:inbound-channel-adapter
+		kafka-consumer-context-ref="consumerContext" auto-startup="false"
+		channel="inputFromKafka" id="kafka-inbound-channel-adapter">
+		<int:poller fixed-delay="1000" time-unit="MILLISECONDS"
+			receive-timeout="0" />
+
+	</int-kafka:inbound-channel-adapter>
+
+	<!-- Consumer -->
+	<bean id="flightDecoder"
+		class="org.springframework.integration.kafka.serializer.avro.AvroReflectDatumBackedKafkaDecoder">
+		<constructor-arg value="it.demo.kafka.springkafka.bean.Flight" />
+	</bean>
+
+	<int-kafka:consumer-context id="consumerContext"
+		consumer-timeout="4000" zookeeper-connect="zookeeperConnect"
+		consumer-properties="consumerProperties">
+		<int-kafka:consumer-configurations>
+			<int-kafka:consumer-configuration
+				group-id="default" max-messages="50" value-decoder="flightDecoder">
+				<int-kafka:topic id="U22552" streams="1" />
+				<int-kafka:topic id="U22780" streams="1" />
+			</int-kafka:consumer-configuration>
+		</int-kafka:consumer-configurations>
+	</int-kafka:consumer-context>
+
+</beans>
