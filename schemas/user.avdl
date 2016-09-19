@@ -1,0 +1,7 @@
+@namespace("it.demo.kafka.springkafka.bean")
+protocol UserProtocol{
+record User {
+	string firstName;
+	string lastName;
+}
+}
